@@ -1,2 +1,2 @@
-# DataAnalysisPython
-Python modules, largely dependent on pandas, for use professionally as a data analyst
+# DataAnalysis
+Modules (VBA/Python) and Queries (Power Query M) for common data analysis and reporting tasks.
