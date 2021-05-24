@@ -9,7 +9,7 @@ This will create a number of subsets equal to the result of:
 let
     /* Validation Checks */
     Param.CombSize = (combinationSize, set) =>
-        if combinationSize > 1 and combinationSize <= List.Count(set) then
+        if combinationSize >= 1 and combinationSize <= List.Count(set) then
             combinationSize
         else
             error Error.Record(
