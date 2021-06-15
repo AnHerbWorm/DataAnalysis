@@ -1,13 +1,16 @@
 /* 
 CurrentWorkbook.NamedRange
 
-Return the value referenced by the workbook scoped named range. The return type is inferred from the structure of Content for the named range.
+Return the value referenced by the workbook scoped named range. The return type is inferred from the structure of
+[Content] for the named range.
 
 Args
 ----
 name: The named range to lookup, by default will only pull workbook scoped names.
 sheet: [Optional] Name of the worksheet where the named range is scoped.
-forceTable: Optional. Use true to always return the Content table accessed by Excel.CurrentWorkbook() function instead of inferring the return type. Using forceTable=true is equivalent to writing Excel.CurrentWorkbook(){[Name=name]}[Content]
+forceTable: Optional. Use true to always return the Content table accessed by Excel.CurrentWorkbook() function 
+    instead of inferring the return type. Using forceTable=true is equivalent to writing 
+    Excel.CurrentWorkbook(){[Name=name]}[Content]
 
 ReturnType
 ----------
@@ -31,7 +34,14 @@ let
                                 "'#[nm]' is not a valid named range for this workbook.",
                                 [nm = name]
                             ),
-                            "Check that the spelling is correct, and that the named range is scoped to the workbook. Worksheet scoped named ranges can still be accessed using the optional sheet parameter."
+                            Text.Combine(
+                                {
+                                    "Check that the spelling is correct, and that the named range is scoped to the",
+                                    "workbook. Worksheet scoped named ranges can still be accessed using the optional",
+                                    "sheet parameter."
+                                },
+                                " "
+                            )
                         )
                 else
                     TryContent[Value],
@@ -80,7 +90,30 @@ let
     ),
     Main.Docs = [
         Documentation.Name = "CurrentWorkbook.NamedRange",
-        Documentation.LongDescription = "Return the value referenced by the workbook named range. Worksheet scoped ranges can be accessed by also providing the 'sheet' parameter.<br><br><b>Args</b><br>-----<br><b>name</b> as text: named range<br><b>sheet</b> as nullable text: [Optional] sheet name for worksheet scoped named ranges<br><b>forceTable</b> as nullable logical: [Optional] always return a table of the named range instead of inferring the return type<br><br><b>Return</b><br>--------<br>Values are assumed to be:<br>+ A literal if Content is a 1x1 table with 'Column1'<br>+ A list if Content is a 1xN table with 'Column1'<br>+ A table if neither of the above is true<br><br>The table return format is the default for Excel.CurrentWorkbook()[Content] records. forceTable=true may optionally be used to return the named range as a table regardless of the layout structure - this is equivalent to writing Excel.CurrentWorkbook(){[Name=name]}[Content].",
+        Documentation.LongDescription = Text.Combine(
+            {
+                "Return the value referenced by the workbook named range.",
+                "Worksheet scoped ranges can be accessed by also providing the 'sheet' parameter.<br><br>",
+                
+                "<b>Args</b><br>-----<br>",
+                "<b>name</b> as text: named range<br>",
+                "<b>sheet</b> as nullable text: [Optional] sheet name for worksheet scoped named ranges<br>",
+                "<b>forceTable</b> as nullable logical: [Optional] always return a table of the named range",
+                "instead of inferring the return type<br><br>",
+                
+                "<b>Returns</b><br>---------<br>Values are assumed to be:<br>",
+                "+ A literal if Content is a 1x1 table with 'Column1'<br>",
+                "+ A list if Content is a 1xN table with 'Column1'<br>",
+                "+ A table if neither of the above is true<br><br>",
+                "The table return format is the default for Excel.CurrentWorkbook()[Content] records.",
+                "forceTable=true may optionally be used to return the named range as a table regardless of the layout",
+                "structure - this is equivalent to writing Excel.CurrentWorkbook(){[Name=name]}[Content].<br><br>",
+                
+                "<b>Raises</b><br>-------<br>",
+                "Argument Error: the named range does not exist in the workbook scope"
+            },
+            " "
+        ),
         Documentation.Examples = {
             [
                 Description = "Name refers to a single cell",
@@ -105,7 +138,17 @@ let
             [
                 Description = "Name refers to a table only scoped to sheet 'abc'",
                 Code = "CurrentWorkbook_NamedRange(""AlphabetWithPosition"", ""abc"")",
-                Result = "Pos | Letter#(lf)------------#(lf)  1 |  A#(lf)  2 |  B#(lf)  3 |  C#(lf) .. | ..#(lf) 26 |  Z"
+                Result = Text.Combine(
+                    {
+                        "Pos | Letter#(lf)",
+                        "------------#(lf)",
+                        "  1 |  A#(lf)",
+                        "  2 |  B#(lf)",
+                        "  3 |  C#(lf)",
+                        " .. | ..#(lf)",
+                        " 26 |  Z"
+                    }
+                )
             ]
         }
     ]
