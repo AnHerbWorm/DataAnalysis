@@ -23,11 +23,26 @@ Get dtype mapping:
 Group accessor (requires groups defined via Cols.add_group method):
 >>> Cols.G.GROUP_NAME
 
+DataFrame Aggregator Funcs
+--------------------------
+Functions to .groupby and .agg multiple subsets of a single DataFrame. Subsets are
+defined by filtering certain columns within the df. All valid combinations of subsets
+are created and given the same .groupby.agg process.
+
+NamedTotal:\n
+\tDataclass that defines necessary fields for filtering and renaming sub/grand totals
+define_aggregator_from_dict:\n
+\tDefines a function that reduces a DataFrame into a Series of measures.
+dataframe_combination_agg:\n
+\tCombine results of the same groupby - agg process on subsets of a df
 """
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Union
+from itertools import combinations
+from typing import List, Optional, Union, Callable, Any, Tuple
+
+from pandas import concat, DataFrame, Series
 
 
 class PandasDtype(str, Enum):
@@ -190,6 +205,176 @@ class ColumnEnumerator(_ColumnEnumerator):
             rows = rows[1:]
         cols = list(map(lambda row: ColumnSpecs(*row), rows))
         return cls(cols)
+
+
+# endregion
+# *************************************************************************************
+
+# *************************************************************************************
+# region COMBINATION AGGREGATOR
+
+
+@dataclass
+class NamedTotal:
+    """Defines necessary fields for filtering and renaming sub/grand totals"""
+
+    column: str
+    alias: str
+    selector: Callable[[Any], bool]
+
+
+SubsetType = Tuple[NamedTotal]
+
+
+def define_aggregator_from_dict(measures: dict):
+    """Defines a function that reduces a DataFrame into a Series.
+
+    The aggregator function uses a mapping of {str: Any} where str becomes the
+    column name and Any is the aggregated value. Users must ensure their mapping
+    reduces the input DataFrame as intended.
+
+    Args
+    ----
+    measures: Mapping of column name to any value. Values are typically a single scalar
+    reduction of a DataFrame column, but can be any obj.
+
+    Returns
+    -------
+    Callable[[DataFrame], Series]
+    """
+
+    def aggregator(grp: DataFrame) -> Series:
+        d = {}
+        for alias, func in measures.items():
+            d[alias] = func(grp)
+        return Series(d, index=d.keys())
+
+    return aggregator
+
+
+def _generate_valid_subsets(
+    totals: List[NamedTotal], required: List[str] = None
+) -> SubsetType:
+    """Yield a tuple of all NamedTotals that comprise a valid combination.
+
+    Args
+    ----
+    totals: list of NamedTotal instances that define the subsets.
+    required: list of column names that will only output aggregations that include
+    total/subtotal selections.
+
+    Yields
+    -------
+    Tuple of NamedTotal instances for a single aggregation.
+    """
+
+    def validator(subset) -> bool:
+        """Given subset contains no duplicated cols and all required cols"""
+        columns_in_subset = [c for c, _, _ in subset]
+        is_distinct = len(columns_in_subset) == len(set(columns_in_subset))
+        has_required = True
+        if required is not None:
+            has_required = set(required).issubset(columns_in_subset)
+
+        return is_distinct & has_required
+
+    subsets = []
+    for combin in [combinations(totals, r) for r in range(1, len(totals) + 1)]:
+        for subset in combin:
+            subsets.append(subset)
+    for valid in filter(validator, subsets):
+        yield valid
+
+
+def _create_subset_frame(df: DataFrame, subset: SubsetType) -> DataFrame:
+    """Apply the subset definition to filter and transform the DataFrame
+
+    Args
+    ----
+    df: DataFrame to be filtered and transformed
+    subset: Definition of the column filters and alias values
+
+    Returns
+    -------
+    Selected rows from df as defined by the selector functions in subset
+
+    """
+    for col, alias, selector in subset:
+        df = df.loc[df[col].map(selector)].assign(**{col: alias})
+    return df
+
+
+def _combine_to_csv(filepath: str):
+    """Set .csv filepath for outputting all dataframe aggregations
+
+    The first agg output will add the header and replace any existing file. Subsequent
+    aggs only append data to the file.
+    """
+    csv_kwargs = {"path_or_buf": filepath, "header": True, "mode": "w"}
+
+    def append_df(df: DataFrame) -> None:
+        df.to_csv(**csv_kwargs)
+        if csv_kwargs["header"]:
+            csv_kwargs["header"] = False
+            csv_kwargs["mode"] = "a"
+
+    return append_df
+
+
+def _combine_to_memory(aggs: list):
+    """Append dataframe aggregations to the given list instance."""
+
+    def append_df(df) -> None:
+        aggs.append(df)
+
+    return append_df
+
+
+def dataframe_combination_agg(
+    df: DataFrame,
+    groupby: List[str],
+    totals: List[NamedTotal],
+    aggregator: Callable[[DataFrame], Series],
+    totals_only: List[str],
+    csv_output_path: str = None,
+) -> DataFrame:
+    """Combine results of the same groupby - agg process on subsets of a df
+
+    Args
+    ----
+    df: DataFrame to be aggregated\n
+    groupby: Column names to groupby\n
+    totals: List of NamedTotals which defines the total/subtotals in the combination
+    aggs\n
+    aggregator: Callable that transforms a single grouped dataframe into a series of
+    measures.\n
+    totals_only: List of column names that will only include their alias values defined
+    in totals in the combination output.\n
+    csv_output_path: Optional path to a csv file to output each aggregation instead of
+    storing in memory. Useful when there are many combinations being created on a
+    large dataframe as only the df and one aggregation are in memory at any time.\n
+
+    Returns
+    -------
+    Original dataframe when output to csv, otherwise the result of applying and
+    combining all aggregations.
+    """
+    if csv_output_path is None:
+        fn_combin = _combine_to_memory(aggregations := [])
+        fn_output = lambda: concat(aggregations)
+    else:
+        fn_combin = _combine_to_csv(csv_output_path)
+        fn_output = lambda: df
+
+    for subset in _generate_valid_subsets(totals, totals_only):
+        (
+            _create_subset_frame(df, subset)
+            .groupby(groupby)
+            .apply(aggregator)
+            .pipe(fn_combin)
+        )
+
+    return fn_output()
 
 
 # endregion
