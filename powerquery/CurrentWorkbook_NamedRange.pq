@@ -1,71 +1,45 @@
 /* 
-CurrentWorkbook.NamedRange
-
-Return the value referenced by the workbook scoped named range. The return type is inferred from the structure of
-[Content] for the named range.
-
-Args
-----
-name: The named range to lookup, by default will only pull workbook scoped names.
-sheet: [Optional] Name of the worksheet where the named range is scoped.
-forceTable: Optional. Use true to always return the Content table accessed by Excel.CurrentWorkbook() function 
-    instead of inferring the return type. Using forceTable=true is equivalent to writing 
-    Excel.CurrentWorkbook(){[Name=name]}[Content]
-
-ReturnType
-----------
-+ A literal if Content is a 1x1 table with "Column1" as the only column
-+ A list if Content is a 1xN table with "Column1" as the only column
-+ A table if neither of the above is true, or forceTable=true
+* return the value referenced by the workbook scoped named range. The return type is inferred from the structure of
+* [Content] for the named range, and M detects the type for literals.
+*
+* support for worksheet scoped named ranges is provided through the optional 'sheet' parameter
+*
+* @name CurrentWorkbook.NamedRange
+* @categories excel, currentworkbook
+* @license MIT (c) 2021 AnHerbWorm
+* @author https://github.com/AnHerbWorm
+* @source https://github.com/AnHerbWorm/DataAnalysis/tree/main/powerquery
+* @result literal, table, or list
 */
 let
-    AllNames = Excel.CurrentWorkbook()[Name],
-    
-    Main.Func = (name as text, optional sheet as nullable text, optional forceTable as nullable logical) as any =>
+    Param.Name.Error = (name as text) as record =>
+        Error.Record(
+            "Argument Error",
+            Text.Format("'#[nm]' is not a valid named range for this workbook.",[nm = name]),
+            Text.Combine(
+                {
+                    "Check that the spelling is correct, and that the named range is scoped to the",
+                    "workbook. Worksheet scoped named ranges can still be accessed using the optional",
+                    "sheet parameter."
+                },
+                " "
+            )
+        ),
+
+    Main.Func = (name as text, optional sheet as nullable text) as any =>
         let
-            _Name = if sheet = null then name else Text.Format("#[sh]![nm]", [sh=sheet, nm=name]),
-            TryContent = try Excel.CurrentWorkbook(){[Name=_Name]}[Content],
+            Name = if sheet = null then name else Text.Format("#[sh]![nm]", [sh=sheet, nm=name]),
             Content =
-                if TryContent[HasError] then
-                    error
-                        Error.Record(
-                            "Argument Error",
-                            Text.Format(
-                                "'#[nm]' is not a valid named range for this workbook.",
-                                [nm = name]
-                            ),
-                            Text.Combine(
-                                {
-                                    "Check that the spelling is correct, and that the named range is scoped to the",
-                                    "workbook. Worksheet scoped named ranges can still be accessed using the optional",
-                                    "sheet parameter."
-                                },
-                                " "
-                            )
-                        )
-                else
-                    TryContent[Value],
-            ReturnLiteral =
-                Table.RowCount(Content)
-                = 1
-                and Table.ColumnNames(Content)
-                = {
-                    "Column1"
-                },
-            ReturnList =
-                Table.RowCount(Content)
-                > 1
-                and Table.ColumnNames(Content)
-                = {
-                    "Column1"
-                },
+                try 
+                    Excel.CurrentWorkbook(){[Name=Name]}[Content]
+                otherwise
+                    error Param.Name.Error(name),
             Output =
-                if forceTable = true then
-                    Content
-                else if ReturnLiteral then
-                    Content{0}[Column1]
-                else if ReturnList then
-                    Content[Column1]
+                if Table.ColumnNames(Content) = {"Column1"} then
+                    if Table.RowCount(Content) = 1 then
+                        Content{0}[Column1]
+                    else
+                        Content[Column1]
                 else
                     Content
         in
@@ -76,13 +50,10 @@ let
             Parameters = [
                 name = type text meta [
                     Documentation.FieldCaption = "name: named range",
-                    Documentation.AllowedValues = AllNames
+                    Documentation.AllowedValues = Excel.CurrentWorkbook()[Name]
                 ],
                 optional sheet = type nullable text meta [
                     Documentation.FieldCaption = "sheet: worksheet scope"
-                ],
-                optional forceTable = type nullable logical meta [
-                    Documentation.FieldCaption = "forceTable: always return content as a table"
                 ]
             ]
         ],
@@ -97,17 +68,14 @@ let
                 
                 "<b>Args</b><br>-----<br>",
                 "<b>name</b> as text: named range<br>",
-                "<b>sheet</b> as nullable text: [Optional] sheet name for worksheet scoped named ranges<br>",
-                "<b>forceTable</b> as nullable logical: [Optional] always return a table of the named range",
-                "instead of inferring the return type<br><br>",
+                "<b>sheet</b> as nullable text: [Optional] sheet name for worksheet scoped named ranges<br><br>",
                 
-                "<b>Returns</b><br>---------<br>Values are assumed to be:<br>",
+                "<b>Returns</b><br>---------<br>Values are inferred to be:<br>",
                 "+ A literal if Content is a 1x1 table with 'Column1'<br>",
                 "+ A list if Content is a 1xN table with 'Column1'<br>",
                 "+ A table if neither of the above is true<br><br>",
-                "The table return format is the default for Excel.CurrentWorkbook()[Content] records.",
-                "forceTable=true may optionally be used to return the named range as a table regardless of the layout",
-                "structure - this is equivalent to writing Excel.CurrentWorkbook(){[Name=name]}[Content].<br><br>",
+                "The table return format is the default for Excel.CurrentWorkbook()[Content] records and will return a",
+                "table with no column types transformed.<br><br>",
                 
                 "<b>Raises</b><br>-------<br>",
                 "Argument Error: the named range does not exist in the workbook scope"

@@ -1,120 +1,45 @@
-/*
-List.Combinations
-
-Generate a list of non-repeating combinations of length combinationSize from the set
-This will create a number of subsets equal to the result of:
---Number.Combinations(List.Count(set), combinationSize)
---nCr from mathematics notation
+/**
+* generate all non-repeating combinations of size 'combinationSize' from a list, or if only a size is provided,
+* all combinations of non-repeating indexes from 0 to (size - 1)
+*
+* if a list containing duplicates is provided, they will be carried through to the subset combinations
+*
+* @name List_Combinations
+* @categories list
+* @license MIT (c) 2021 AnHerbWorm
+* @author https://github.com/AnHerbWorm
+* @source https://github.com/AnHerbWorm/DataAnalysis/tree/main/powerquery
+* @result list of combinations (as lists)
 */
 let
-    /* Validation Checks */
-    Param.CombSize = (combinationSize, set) =>
-        if combinationSize >= 1 and combinationSize <= List.Count(set) then
-            combinationSize
-        else
-            error Error.Record(
-                "Parameter Error",
-                "combinationSize must be between 1 and the length of set",
-                [Value=combinationSize, Min=1, Max=List.Count(set)]
-            ),
-    Param.Set = (set) => if List.IsDistinct(set) then set else Error.Record(
-        "Parameter Error",
-        "set must be distinct to provide non-repeating combinations",
-        [IsDistinct=false]
-    ),
-    /* Main Function */
-    Main.Func =
-        (set as list, combinationSize as number) as list =>
-            let
-                CombSize = Param.CombSize(combinationSize, set),
-                Set = Param.Set(set),
+    Main.Func = (setOrSize as anynonnull, combinationSize as number) as list =>
+        let
+            SetSize = if setOrSize is number then setOrSize else List.Count(setOrSize),
+            Set = {0..SetSize -1},
 
-                MakeSubsets = (n, r, optional tb) =>
-                    /*
-                    Recursive function adds one column to the table with new indices based on the column count.
-                    New columns are lists which get expanded into new records for the next iteration.
-
-                    For example, if doing nCr = 4C2 = 6 combinations, the recursive calls will stop after the 2nd
-                    column is added
-                    
-                    The first iteration will create:
-                        #table({"col0"},{{0}, {1}, {2}})
-                    
-                    The second iteration adds a column of filtered lists:
-                        #table({"col0", "col1"},{
-                            {0,{1,2,3}}, {1,{2,3}, {2,{3}}
-                        })
-                    which is expanded to the cartesian-product of the first column and it's nested list in the 
-                    second column
-                        
-                    To finally output a table of 6 rows x 2 columns:
-                    #table({"col0", "col1"}, {
-                            {0, 1}, {0, 2}, {0, 3},
-                            {1, 2}, {1, 3},
-                            {2, 3}
-                        }) 
-                    */
-                    let
-                        /* 
-                        iteration and index partition setup. The iteration is determined by the number of columns in
-                        the table, and recursion stops when the column count is equal to r
-                        */
-                        CurrentIteration = try Table.ColumnCount(tb) otherwise 0,
-                        Partition = {
-                            CurrentIteration
-                            ..
-                            CurrentIteration + n - r
-                        },
-                        // column names
-                        PrevCol = "c" & Number.ToText(CurrentIteration - 1),
-                        CurrCol = "c" & Number.ToText(CurrentIteration),
-                        // initialization output; create a single column table of all the indices in IndexLists{0}
-                        init =
-                            Table.FromList(
-                                Partition,
-                                Splitter.SplitByNothing(),
-                                {CurrCol},
-                                null,
-                                ExtraValues.Error
-                            ),
-                        // continuation output; add a new column with filtered lists then expand it
-                        cont =
-                            Table.ExpandListColumn(
-                                Table.AddColumn(
-                                    tb,
-                                    CurrCol,
-                                    (record) =>
-                                        List.Select(
-                                            Partition,
-                                            each _ > Record.Field(record, PrevCol)
-                                        )
-                                ),
-                                CurrCol
-                            ),
-                        // final output is the last continuation iteration (r - 1)
-                        out =
-                            if CurrentIteration = r then
-                                tb
-                            else if CurrentIteration = 0 then
-                                @MakeSubsets(n, r, init)
-                            else
-                                @MakeSubsets(n, r, cont)
-                    in
-                        out,
-                SubsetsAsList =
-                    List.Transform(
-                        Table.ToRows(MakeSubsets(List.Count(Set), CombSize)),
-                        // each sublist has its indices converted back to values from the set
-                        (sublist) => List.Transform(sublist, each Set{_})
-                    )
-            in
-                SubsetsAsList,
+            MakeCombins = (n as number, set as list) as list =>
+                if n = 0 then
+                    {{}}
+                else if List.Count(set) = 0 then
+                    {}
+                else
+                    List.Transform(@MakeCombins(n - 1, List.Skip(set, 1)), each {set{0}} & _)
+                    &
+                    @MakeCombins(n, List.Skip(set, 1)),
+            
+            Combins = MakeCombins(combinationSize, Set),
+            CombinValues = List.Transform(
+                    Combins,
+                    (innerList) => List.Transform(innerList, each setOrSize{_})
+                )
+        in
+            if setOrSize is list then CombinValues else Combins,
     Main.Type = Type.ForFunction(
         [
             ReturnType = type list,
             Parameters = [
-                set = type list meta [
-                    Documentation.FieldCaption = "the set of values to get combinations of"
+                setOrSize = type anynonnull meta [
+                    Documentation.FieldCaption = "list or size of list"
                 ],
                 combinationSize = type number meta [
                     Documentation.FieldCaption = "the size of each combination subset"
@@ -127,22 +52,34 @@ let
         Documentation.Name = "List.Combinations",
         Documentation.LongDescription = Text.Combine(
             {
-                "Generate a list of non-repeating combination subsets of length 'combinationSize' from the set.<br>",
+                "Generate a list of non-repeating combination subsets of length <code>combinationSize</code> from the",
+                "set. If <code>setOrSize</code> is an integer, a list of index positions will be generated, otherwise",
+                "combinations from the input list will be created.<br>",
+
                 "The function will generate nCr # of combinations, which can be calculated in Power Query as",
-                "Number.Combinations(List.Count(set), combinationSize)"
+                "<code>Number.Combinations(List.Count(set), combinationSize)</code><br><br>",
+
+                "<b>Args:</b><br>",
+                "<code>setOrSize</code>: list, or integer set size, to create combinations of",
+                "<code>combinationSize</code>: number of elements in each combination subset<br>",
+                
+                "<b>Returns:</b><br>",
+                "A list of all non-repeating combinations of length <code>combinationSize</code> from the source list",
+                "of if an integer <code>setOrSize</code> was provided, a list of all non-repeating index combinations",
+                "from 0 to <code>setOrSize - 1</code>."
             },
             " "
         ),
         Documentation.Examples = {
             [
-                Description = "Subsets of 4 from ABCDE",
+                Description = "Subsets of 4 from ABCDE (5 choose 4)",
                 Code = "List_Combinations({""A"", ""B"", ""C"", ""D"", ""E""}, 4)",
                 Result = "{#(lf)  {""ABCD""},#(lf)  {""BCDE""}#(lf)}"
             ],
             [
-                Description = "Subsets of 2 from 1234",
-                Code = "List_Combinations({1, 2, 3, 4}, 2)",
-                Result = "{#(lf)  {1,2},#(lf)  {1,3},#(lf)  {1,4},#(lf)  {2,3},#(lf)  {2,4},#(lf)  {3,4}#(lf)}"
+                Description = "Subsets of 2 from 4 possible values (4 choose 2)",
+                Code = "List_Combinations(4, 2)",
+                Result = "{#(lf)  {0,1},#(lf)  {0,2},#(lf)  {0,3},#(lf)  {1,2},#(lf)  {1,3},#(lf)  {2,3}#(lf)}"
             ]
         }
     ]

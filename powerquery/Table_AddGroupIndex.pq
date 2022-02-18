@@ -1,8 +1,13 @@
 /* 
-Table.AddGroupIndex
-
-Chains Table.ExpandTableColumn(Table.AddIndexColumn(Table.Group)) functions to append a new index column
-identifying which group each row in the source table belongs to.
+* chains Table.ExpandTableColumn(Table.AddIndexColumn(Table.Group)) functions to append a new index column
+* identifying which group each row in the source table belongs to
+*
+* @name Table.AddGroupIndex
+* @categories table
+* @license MIT (c) 2021 AnHerbWorm
+* @author https://github.com/AnHerbWorm
+* @source https://github.com/AnHerbWorm/DataAnalysis/tree/main/powerquery
+* @result table
 */
 let
     Main.Func = (table as table, key as anynonnull, newColumnName as text) as table =>
@@ -12,7 +17,7 @@ let
                 newColumnName
             ),
             "rows",
-            List.RemoveItems(Table.ColumnNames(table), try key otherwise {key})
+            List.RemoveItems(Table.ColumnNames(table), if key is list then key else {key})
     ),
     Main.Type = Type.ForFunction(
         [
@@ -45,8 +50,7 @@ let
                 "<code>newColumnName</code>: name of the index column appended<br><br>",
                 
                 "<b>Returns:</b><br>",
-                "The source table with one index column appended. The index column starts at 0, increments by 1",
-                ", and groups are numbered in the order they are observed."
+                "The source table with one index column appended. The index column starts at 0, increments by 1."
             },
             " "
         ),

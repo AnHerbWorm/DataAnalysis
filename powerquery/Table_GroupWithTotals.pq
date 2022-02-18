@@ -1,35 +1,28 @@
-/*
-Table.GroupWithTotals
-
-Create and combine the results of Table.Group() on subsets of the table with Sub/Grand Totals added.
-
-Raise
------
-Depending on the number of subtotals defined, this function can take a long time to process all combinations 
-    so query-specific errors are checked early. The additional overhead of checking early can prevent certain cases 
-    where an error would otherwise be generated late in the calculations, which makes the user wait several minutes 
-    before being notified.
-
-+ Parameter Error: keyColumns cannot be null and must contain all columns listed in subtotals
-+ Parameter Error: each distinct subtotals column cannot reuse an alias
-+ Parameter Error: totalsOnlyColumns must be null or only contain columns listed in subtotals
-+ Dependency Missing: a function used in this query is not imported (see dependencies below)
-
-Dependencies
-------------
-List.Combinations (as List_Combinations or ListCombinations in #shared)
+/**
+* compute and combine Table.Group() calls on subsets of sourceTable with sub/grand totals added
+*
+* performs initial checks on parameter values to ensure the function will complete as it can be
+* expensive to find out late in the calculation sequence that a combination fails
+*
+* @name Table.GroupWithTotals
+* @categories table
+* @license MIT (c) 2021 AnHerbWorm
+* @author https://github.com/AnHerbWorm
+* @source https://github.com/AnHerbWorm/DataAnalysis/tree/main/powerquery
+* @result table
 */
 let
     /* Subset Functions
-    A subset is a non-nullable list of subtotals with length > 0
+    A subset is a non-nullable list of subtotals, where each subtotal has length > 0
 
     Subset.Type -> type: type definition for reference only. It is not ascribed anywhere but describes the 
-        list {record} structure for anyone reading the query code
+        list {record} structure
     Subset.Columns -> list: all column field values in the subset
     Subset.IsValid -> logical: column field values are distinct and all required columns are present
     Subset.ToTable -> table: sourceTable with subtotal application for each record in the subset.
         Can return a table with 0 rows if the subtotals do not have any overlap in the results of their selector 
         functions
+    Subset.Combinations -> list: list of all combinations of subsets of length n
     */
     Subset.Type = type {[column = text, alias = text, selector = function]},
     Subset.Columns = (subset as list) as list => List.Transform(subset, each _[column]),
@@ -48,14 +41,21 @@ let
                 {
                     {Curr[column], each Curr[alias], type text}
                 }
-            ),
-            Output =
-                if Recur then
-                    @Subset.ToTable(subset, iter + 1, ContTable)
-                else
-                    tbl
+            )
         in
-            Output,
+            if Recur then
+                @Subset.ToTable(subset, iter + 1, ContTable)
+            else
+                tbl,
+    Subset.Combinations = (s as list, n as number) as list =>
+        if n = 0 then
+            {{}}
+        else if List.Count(s) = 0 then
+            {}
+        else
+            List.Transform(@Subset.Combinations(List.Skip(s), n - 1), each {List.First(s)} & _)
+            &
+            @Subset.Combinations(List.Skip(s), n),
     // Validation Checks
     Param.KeyColumns = (keyColumns, subtotals) =>
         let
@@ -114,7 +114,7 @@ let
                 each not List.Contains(List.Transform(subtotals, each _{0}), _)),
             Err = Error.Record(
                 "Parameter Error",
-                "totalsOnlyColumns mustb e null or only contain columns listed in subtotals",
+                "totalsOnlyColumns must be null or only contain columns listed in subtotals",
                 [Not Subtotals=Text.Combine(List.Distinct(NotSubtotal), ", ")]
             ),
             Param = 
@@ -124,24 +124,6 @@ let
                     error Err
         in
             Param,
-    Function.FromShared = (name as text, lookup_names as list) =>
-        try
-            List.RemoveNulls(
-                List.Transform(
-                    lookup_names,
-                    each Record.FieldOrDefault(#shared, _, null)
-                )
-            ){0}
-        otherwise
-            error Error.Record(
-                "Dependency Missing",
-                "a function used in this query was not found in #shared scope",
-                [
-                    Function=name,
-                    Shared Queries Checked=Text.Combine(lookup_names, ", "),
-                    Resolve="the .pq file for this dependency is available at github.com/AnHerbWorm/DataAnalysis/powerquery/"
-                ]
-            ),
     // Main Function
     Main.Func = (sourceTable as table,
                  keyColumns as list,
@@ -153,31 +135,24 @@ let
             KeyColumns = Param.KeyColumns(keyColumns, subtotals),
             Subtotals = Param.Subtotals(subtotals, keyColumns),
             TotalsOnly = Param.TotalsOnly(totalsOnlyColumns, subtotals),
-            List.Combinations = Function.FromShared(
-                "List.Combinations",
-                {"ListCombinations", "List_Combinations"}
-            ),
         
             SubtotalsAsRecords = List.Transform(Subtotals, each Record.FromList(_, {"column", "alias", "selector"})),
-            /*
-            the max number of elements in a subset is equal to the number of columns where a total is applied
-            the min number of elements in a subset is equal to the number of totalsOnlyColumns columns, 
-                or 1 if totalsOnlyColumns is null
-            */
+            // the max number of elements in a subset is equal to the number of columns where a total is applied
+            // the min number of elements in a subset is equal to the number of totalsOnlyColumns columns, 
+            // or 1 if totalsOnlyColumns is null
             MaxSubsetSize = List.Count(List.Distinct(Subset.Columns(SubtotalsAsRecords))),
             MinSubsetSize = List.Min({MaxSubsetSize, try List.Count(TotalsOnly) otherwise 1}),
             AllSubsets = List.Accumulate(
                 {MinSubsetSize..MaxSubsetSize},
                 {},
-                (state, current) => state & List.Combinations(SubtotalsAsRecords, current)
+                (state, current) => state & Subset.Combinations(SubtotalsAsRecords, current)
             ),
-            // buffer all the valid subsets and source table as these are accessed a lot during aggregations
             ValidSubsets = List.Buffer(List.Select(AllSubsets, each Subset.IsValid(_, TotalsOnly))),
             BufferedSource = Table.Buffer(sourceTable),
             CreateAndCombineSubsetTables = Table.Combine(
                 List.Transform(ValidSubsets, each Subset.ToTable(_, 0, BufferedSource))
             ),
-            // apply standard Table.Group().
+            // apply standard Table.Group()
             // in cases where TotalsOnly is null, we also need to compute measures on the base table
             BaseMeasures = Table.Group(
                 BufferedSource,

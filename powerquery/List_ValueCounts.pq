@@ -1,7 +1,12 @@
 /*
-List_ValueCounts
-
-Return nested list of distinct values and their count of occurrences within the source list.
+* return distinct values and their count of occurrences within the source list as a table or list
+*
+* @name List.ValueCounts
+* @categories list
+* @license MIT (c) 2021 AnHerbWorm
+* @author https://github.com/AnHerbWorm
+* @source https://github.com/AnHerbWorm/DataAnalysis/tree/main/powerquery
+* @result table, list of lists, or list of records
 */
 let
     Main.Func = (list as list, optional outputAs as nullable text) as any =>
@@ -39,7 +44,9 @@ let
                 "Counts each occurrence of distinct values in the input list.<br><br>",
                 "<b>Args<br>------</b><br>",
                 "<i>list</i>: Source list for value counts.<br>",
-                "<i>outputAs</i>: Text representation of how to return the value counts. Options are list/records/table. Default 'table' will be applied if omitted or a non-allowed value is entered. See examples for more details.<br>",
+                "<i>outputAs</i>: Text representation of how to return the value counts. Options are ",
+                "'lists'/'records'/'table'. Default 'table' will be applied if omitted or a non-allowed value is",
+                "entered. See examples for more details.<br>",
                 "<b>Returns<br>---------</b><br>",
                 "Nested list where the inner list has structure: item{0} = value and item{1} = count."
             },
