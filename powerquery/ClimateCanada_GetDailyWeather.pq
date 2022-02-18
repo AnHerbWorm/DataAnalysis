@@ -1,36 +1,19 @@
-/*
-ClimateCanada_GetDailyWeather
-
-Queries climate.weather.gc.ca for daily bulk data (in csv format) for a given climate station and date range.
-Daily data is always provided as an entire year file, so it is filtered afterward to only provide the desired dates.
-
-The .csv schema is set within this query and must be adjusted if the bulk data format changes. Relatedly, if the name
-of the date column changes it needs adjusted for the join operation that filters the data.
+/**
+* Queries climate.weather.gc.ca for daily bulk data (in csv format) for a given climate station and date range. Station
+* IDs are available from climate.weather.gc.ca google drive
+*   https://drive.google.com/drive/folders/1WJCDEU34c60IfOnG4rv5EPZ4IhhW9vZH/
+*
+* the csv schema is hard-coded within this query and will need adjusted if the format changes.
+*
+* @name ClimateCanada.GetDailyWeather
+* @categories weather
+* @license MIT (c) 2021 AnHerbWorm
+* @author https://github.com/AnHerbWorm
+* @source https://github.com/AnHerbWorm/DataAnalysis/tree/main/powerquery
+* @result table
 */
 let
-    Source = let 
-    /*
-    MAIN FUNCTION
 
-    Downloads and processes all climate.weather.gc.ca daily weather data for a single station into 
-    a table filtered to the date range.
-    */
-    Main.Func = (stationID as number, startDate as date, endDate as date) as table =>
-        let
-            AllDates = MakeDateRange(startDate, endDate),
-            AllYears = List.Distinct(List.Transform(AllDates[Date], Date.Year)),
-            
-            URLS = List.Transform(AllYears, each Climate.MakeURL(stationID, _)),
-            ClimateData = Table.Combine(List.Transform(URLS, Climate.ReadURL)),
-            FilterToRange = Table.Join(
-                AllDates,
-                {"Date"},
-                ClimateData,
-                {"Date/Time"}
-            ),
-            RemoveJoinColumn = Table.RemoveColumns(FilterToRange, "Date")
-        in
-            RemoveJoinColumn,
     /*
     CLIMATE FUNCTIONS
         Functions and Types related to climate.weather.gc.ca
@@ -77,10 +60,15 @@ let
         table,
         List.Transform(Type.TableSchema(Climate.CSVSchema)[Name], each {_, Type.TableColumn(Climate.CSVSchema, _)})
     ),  
-    Climate.MakeURL = (stationID as number, year as number) as text => Text.Format(
-        "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID=#[id]&Year=#[yr]&Month=12&Day=31&timeframe=2",
-        [id=stationID, yr=year]
-    ),
+    Climate.MakeURL = (stationID as number, year as number) as text => 
+        Text.Combine(
+            {
+                "http://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&",
+                Text.Format("stationID=#[id]&Year=#[yr]", [id=stationID, yr=year]),
+                "&Month=12&Day=31&timeframe=2"
+            },
+            ""
+        ),
     Climate.ReadURL = (url as text) as table => 
         let
             Source = Csv.Document(
@@ -105,18 +93,38 @@ let
             each {Date.AddDays(start, _)}
         )
     ),
-    /* DOCUMENTATION */
+    /* MAIN FUNCTION */
+    Main.Func = (stationID as number, startDate as date, endDate as date) as table =>
+        let
+            AllDates = MakeDateRange(startDate, endDate),
+            AllYears = List.Distinct(List.Transform(AllDates[Date], Date.Year)),
+            
+            URLS = List.Transform(AllYears, each Climate.MakeURL(stationID, _)),
+            ClimateData = Table.Combine(List.Transform(URLS, Climate.ReadURL)),
+            FilterToRange = Table.Join(
+                AllDates,
+                {"Date"},
+                ClimateData,
+                {"Date/Time"}
+            ),
+            RemoveJoinColumn = Table.RemoveColumns(FilterToRange, "Date")
+        in
+            RemoveJoinColumn,
     Main.Docs = [
         Documentation.Name = "ClimateCanada_GetDailyWeather",
         Documentation.LongDescription = Text.Combine(
             {
-                "Queries climate.weather.gc.ca for daily bulk data (in csv format) for a given climate station and date range.<br><br>",
+                "Queries climate.weather.gc.ca for daily bulk data (in csv format) for a given climate station and",
+                "date range.<br><br>",
+                
                 "<b>Args<br>------</b><br>",
-                "<i>stationID</i>: Climate Station ID. A list of all stationIDs can be found at https://drive.google.com/drive/folders/1WJCDEU34c60IfOnG4rv5EPZ4IhhW9vZH/<br>",
+                "<i>stationID</i>: Climate Station ID. A list of all stationIDs can be found at",
+                "https://drive.google.com/drive/folders/1WJCDEU34c60IfOnG4rv5EPZ4IhhW9vZH/<br>",
                 "<i>startDate</i>: First date to include in the download (inclusive).<br>",
-                "<i>endDate</i>: Last date to include in the download (inclusive).<br>",
-                "<br>",
-                "<b>NOTE<br>-------</b><br>Table schema is set within this query and must be adjusted if the bulk data format changes."
+                "<i>endDate</i>: Last date to include in the download (inclusive).<br><br>",
+
+                "<b>NOTE<br>-------</b><br>",
+                "Table schema is set within this query and must be adjusted if the bulk data format changes."
             },
             " "
         ),
@@ -155,5 +163,3 @@ let
     )
 in
     Value.ReplaceType(Main.Func, Main.Type meta Main.Docs)
-in
-    Source
