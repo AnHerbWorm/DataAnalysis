@@ -7,7 +7,7 @@
 *
 * @name ClimateCanada.GetDailyWeather
 * @categories weather
-* @license MIT (c) 2021 AnHerbWorm
+* @license MIT (c) 2021 W Bohm
 * @author https://github.com/AnHerbWorm
 * @source https://github.com/AnHerbWorm/DataAnalysis/tree/main/powerquery
 * @result table
