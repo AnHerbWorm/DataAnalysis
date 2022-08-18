@@ -78,8 +78,8 @@ Set outlookApp = CreateObject("Outlook.Application")
 Dim email As Object
 Set email = outlookApp.createitem(0)
 
-If IsMissing(RecipientsCC) Then RecipientsCC = ""
-If IsMissing(RecipientsBCC) Then RecipientsBCC = ""
+If IsMissing(RecipientsCC) Then RecipientsCC = vbNullString
+If IsMissing(RecipientsBCC) Then RecipientsBCC = vbNullString
 
 With email
     .display

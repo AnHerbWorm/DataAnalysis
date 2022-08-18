@@ -55,7 +55,7 @@ Sub DisplayError(ByVal src As String, ByVal desc As String _
     ' Check If the error happens in topmost sub
     If AlreadyUsed = False Then
         ' Reset string to remove "VBAProject"
-        src = ""
+        src = vbNullString
     End If
 
     ' Build the final message

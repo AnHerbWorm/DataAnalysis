@@ -11,9 +11,9 @@ Option Explicit
 
 Public Sub RefreshQueriesFromListObject( _
     ByRef tbRefresh As ListObject, _
-    Optional ByVal UserPromptMsg As String = "", _
-    Optional ByVal UpdateCompleteMsg As String = "", _
-    Optional ByRef updatePivot As Variant = "" _
+    Optional ByVal UserPromptMsg As String = vbNullString, _
+    Optional ByVal UpdateCompleteMsg As String = vbNullString, _
+    Optional ByRef updatePivot As Variant = vbNullString _
 )
 '#######################################################################################
 ' RefreshQueriesFromListObject
@@ -58,7 +58,7 @@ Dim invalidConnections As String
 Dim validAsIs As Boolean
 Dim validQueryPrefix As Boolean
 
-invalidConnections = ""
+invalidConnections = vbNullString
 validAsIs = False
 validQueryPrefix = False
 
@@ -99,7 +99,7 @@ End If
 'prompt user to start all refreshes
 Dim msgContinueResult As VbMsgBoxResult
 Dim msgContinuePrompt As String
-If IsMissing(UserPromptMsg) Or UserPromptMsg = "" Then
+If IsMissing(UserPromptMsg) Or UserPromptMsg = vbNullString Then
     msgContinuePrompt = ( _
         "Update " & tbRefresh.DataBodyRange.Count & " queries? This will take several minutes. A message will notify you of completion." & _
         vbNewLine & _
@@ -113,7 +113,7 @@ msgContinueResult = MsgBox(msgContinuePrompt, vbOKCancel)
 
 ' override completion message, if provided
 Dim msgComplete As String
-If IsMissing(UpdateCompleteMsg) Or UpdateCompleteMsg = "" Then
+If IsMissing(UpdateCompleteMsg) Or UpdateCompleteMsg = vbNullString Then
     msgComplete = "Data Refreshes Complete"
 Else
     msgComplete = UpdateCompleteMsg
@@ -145,7 +145,7 @@ If msgContinueResult = vbOK Then
     Application.StatusBar = False
 
     'update pivot tables
-    If updatePivot = "" Then
+    If updatePivot = vbNullString Then
         RefreshAllPivotTables True, UpdateCompleteMsg
     ElseIf updatePivot = True Then
         RefreshAllPivotTables False, UpdateCompleteMsg
@@ -159,7 +159,7 @@ End Sub
 
 Public Sub RefreshAllPivotTables( _
     Optional ByVal PromptRefresh As Boolean = True, _
-    Optional ByVal msgComplete As String = "")
+    Optional ByVal msgComplete As String = vbNullString)
 '#######################################################################################
 ' RefreshAllPivotTables
 '
@@ -197,7 +197,7 @@ Else
     msgCompleteDefault = "Complete. " & countPivot & " pivot tables in this workbook have been refreshed"
 End If
 
-If IsMissing(msgComplete) Or msgComplete = "" Then
+If IsMissing(msgComplete) Or msgComplete = vbNullString Then
     msgComplete = msgCompleteDefault
 End If
 
@@ -408,7 +408,7 @@ Dim AllColumnsExist As Boolean
 AllColumnsExist = True
 
 Dim MissingColumns As String
-MissingColumns = ""
+MissingColumns = vbNullString
 
 Dim k As Variant
 Dim rng As Range

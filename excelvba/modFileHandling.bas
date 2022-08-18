@@ -9,10 +9,10 @@ Attribute VB_Name = "modFileHandling"
 Option Explicit
 
 Public Function SelectExcelFilesToCollection( _
-    Optional ByVal UserPrompt As String = "", _
-    Optional ByVal StartFolder As String = "", _
+    Optional ByVal UserPrompt As String = vbNullString, _
+    Optional ByVal StartFolder As String = vbNullString, _
     Optional ByVal SelectMultiple As Boolean = False, _
-    Optional ByVal NoFileMsg As String = "", _
+    Optional ByVal NoFileMsg As String = vbNullString, _
     Optional ByVal SuppressNoFileMsg As Boolean = False _
     ) As Collection
 '#######################################################################################
@@ -61,7 +61,7 @@ End If
 Dim mboxPrompt As String
 Dim mboxSelection As VbMsgBoxResult
 
-If UserPrompt = "" Then
+If UserPrompt = vbNullString Then
     If SelectMultiple Then
         mboxPrompt = "Select one or more Excel files"
     Else
@@ -72,7 +72,7 @@ Else
 End If
 
 Dim mboxNoFileMsg As String
-If NoFileMsg = "" Then
+If NoFileMsg = vbNullString Then
     mboxNoFileMsg = "No file was selected. The subroutine that called this function may fail " & _
         "if it is not setup to handle 0 length collections." & _
         vbNewLine & vbNewLine & _
