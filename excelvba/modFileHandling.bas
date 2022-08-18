@@ -35,8 +35,8 @@ Public Function SelectExcelFilesToCollection( _
 '       the procedure calling this function has it's own handling for this case
 '
 ' Returns:
-'   a collection of strings, where each item is a file path
-'   if no file is selected an empty collection is returned
+'   A collection of strings, where each item is a file path.
+'   If no file is selected an empty collection is returned.
 '
 'NOTE:
 '   Any procedure calling this one should check that the output collection
@@ -117,3 +117,76 @@ proc_exit_nofile:
 
 End Function
 
+Public Sub CreateFolderWithParentDirs(ByVal folderPath As String, Optional ByVal hideCompleteMsg As Boolean = False, optional ByVal hideErrorMsg as Boolean = False)
+'#######################################################################################
+' CreateFolderWithParentDirs
+'
+'   Creates the folder and all parent directories that do not exist. Assumes that the
+'   user has sufficient privileges to create folders in the root directory.
+'
+' Args:
+'   folderPath: string
+'       The directory to create.
+'   hideCompleteMsg: optional bool (Default: False)
+'       Sets whether to hide the message box confirming folder creation
+'   hideErrorMsg: optional bool (Default: False)
+'       Sets whether to hide the message box displaying failure information
+'
+' Affects:
+'   The file system as this sub will create directories as needed.
+'#######################################################################################
+Dim fso As Object
+Set fso = CreateObject("Scripting.FileSystemObject")
+
+'-- Find missing folders
+Dim currentFolder As String
+Dim existingRoot As String
+
+Dim toCreate As Collection
+Set toCreate = New Collection
+
+currentFolder = folderPath
+Do While currentFolder <> vbNullString 
+    ' GetParentFolderName returns vbNullString when it goes higher than the drive level
+    ' so we can break the loop on this condition
+    If fso.FolderExists(currentFolder) Then
+        existingRoot = currentFolder
+        Exit Do
+    Else
+        toCreate.Add currentFolder
+    End If
+    currentFolder = fso.GetParentFolderName(currentFolder)
+Loop
+
+'-- Creates all folders, starting with the lowest level
+Dim driveExists as Boolean
+driveExists = (currentFolder <> vbNullString)
+
+If driveExists Then
+    For depth = toCreate.count To 1 Step -1
+        fso.CreateFolder (toCreate(depth))
+    Next depth
+Else
+    If Not hideErrorMsg then
+        MsgBox "Script Failure <modFileHandling.CreateFolderWithParentDirs>: " _ 
+            & vbNewLine & vbNewLine
+            & "Cannot create a drive. Verify the folderPath is correct and/or that drive '" & fso.GetDriveName(folderPath) & "' is accessible." _ 
+            & vbNewLine & vbNewLine _ 
+            & "folderPath = " & folderPath 
+    End if
+End If
+
+'-- Optionally confirm completion
+If Not hideCompleteMsg Then
+    If existingRoot = folderPath Then
+        MsgBox "Script Complete <modFileHandling.CreateFolderWithParentDirs>: " _ 
+            & vbNewLine & vbNewLine _
+            & "'" & folderPath & "' already existed. No action was taken."
+    Else
+        MsgBox "Script Complete <modFileHandling.CreateFolderWithParentDirs>: " _
+            & vbNewLine & vbNewLine _
+            & "Created '" & folderPath & "' by making" & Str(toCreate.count) & " folders starting in '" & existingRoot & "'."
+    End If
+End If
+
+End Sub
