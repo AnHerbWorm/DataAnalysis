@@ -8,8 +8,5 @@
 *.code-workspace
 # End of https://www.toptal.com/developers/gitignore/api/vscode,python
 
-### DataAnalysis Project ###
-_todo*.md
-
 ### Python ###
 **/__pycache__/
